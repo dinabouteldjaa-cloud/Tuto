@@ -34,6 +34,7 @@ export function SignUpPage() {
       eyebrow="Get started"
       title="Create your account"
       subtitle="Your notes, schoolwork, and study companion — all in one place."
+      mascotMood="happy"
       footer={
         <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
           Already have an account?{" "}

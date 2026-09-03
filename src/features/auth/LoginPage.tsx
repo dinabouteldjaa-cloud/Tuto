@@ -31,6 +31,7 @@ export function LoginPage() {
       eyebrow="Welcome back"
       title="Log in to Tuto"
       subtitle="Pick up right where you left off with your notes and schoolwork."
+      mascotMood="greeting"
       footer={
         <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
           New to Tuto?{" "}

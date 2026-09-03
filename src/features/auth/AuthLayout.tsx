@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { TutoCharacter, type TutoMood } from "@/components/TutoCharacter";
 
 interface AuthLayoutProps {
   eyebrow: string;
@@ -6,6 +7,8 @@ interface AuthLayoutProps {
   subtitle: string;
   children: ReactNode;
   footer?: ReactNode;
+  /** When provided, shows the real Tuto mascot instead of the small logo mark. */
+  mascotMood?: TutoMood;
 }
 
 export function AuthLayout({
@@ -14,6 +17,7 @@ export function AuthLayout({
   subtitle,
   children,
   footer,
+  mascotMood,
 }: AuthLayoutProps) {
   return (
     <div
@@ -28,31 +32,35 @@ export function AuthLayout({
         width: "100%",
       }}
     >
-      <div style={{ marginBottom: "var(--space-xl)" }}>
-        <div
-          aria-hidden
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: "var(--radius-md)",
-            background: "var(--color-primary)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: "var(--space-md)",
-          }}
-        >
-          <span
+      <div style={{ marginBottom: "var(--space-lg)" }}>
+        {mascotMood ? (
+          <TutoCharacter mood={mascotMood} size={92} style={{ marginBottom: "var(--space-sm)" }} />
+        ) : (
+          <div
+            aria-hidden
             style={{
-              fontFamily: "var(--font-display)",
-              fontWeight: 800,
-              color: "var(--color-on-primary)",
-              fontSize: 20,
+              width: 44,
+              height: 44,
+              borderRadius: "var(--radius-md)",
+              background: "var(--color-primary)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: "var(--space-md)",
             }}
           >
-            T
-          </span>
-        </div>
+            <span
+              style={{
+                fontFamily: "var(--font-display)",
+                fontWeight: 800,
+                color: "var(--color-on-primary)",
+                fontSize: 20,
+              }}
+            >
+              T
+            </span>
+          </div>
+        )}
         <p
           style={{
             color: "var(--color-primary)",

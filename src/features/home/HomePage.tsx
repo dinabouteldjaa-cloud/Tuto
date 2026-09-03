@@ -29,27 +29,39 @@ export function HomePage() {
 
   return (
     <div style={{ padding: "var(--space-lg)", display: "flex", flexDirection: "column", gap: "var(--space-xl)" }}>
-      {/* Greeting + companion */}
-      <section style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-sm)" }}>
-        <TutoCharacter mood="greeting" size={88} />
-        <div style={{ paddingBottom: 4 }}>
-          <p style={{ color: "var(--color-text-secondary)", fontSize: "var(--text-sm)" }}>
-            {greetingForNow()},
-          </p>
-          <h1 style={{ fontSize: "var(--text-xl)", textTransform: "capitalize" }}>{firstName}</h1>
+      {/* Tuto hero — one character handles both the greeting and the insight */}
+      <section
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-sm)",
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
+          <div>
+            <p style={{ color: "var(--color-text-secondary)", fontSize: "var(--text-sm)" }}>
+              {greetingForNow()},
+            </p>
+            <h1 style={{ fontSize: "var(--text-2xl)", textTransform: "capitalize" }}>{firstName}</h1>
+          </div>
+          <div>
+            <p
+              style={{
+                color: "var(--color-primary-pressed)",
+                fontWeight: 700,
+                fontSize: "var(--text-sm)",
+                marginBottom: 2,
+              }}
+            >
+              Tuto says
+            </p>
+            <p style={{ fontSize: "var(--text-md)", lineHeight: 1.4 }}>
+              Your Cell Biology quiz is Friday — want to review your notes tonight?
+            </p>
+          </div>
         </div>
+        <TutoCharacter mood="greeting" size={150} style={{ flexShrink: 0 }} />
       </section>
-
-      {/* Tuto suggestion card */}
-      <Card tinted style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-        <TutoCharacter mood="thinking" size={60} style={{ flexShrink: 0 }} />
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2xs)" }}>
-          <p style={{ fontWeight: 700, color: "var(--color-primary-pressed)" }}>Tuto suggests</p>
-          <p style={{ fontSize: "var(--text-md)" }}>
-            Your Cell Biology quiz is Friday — want to review your notes tonight?
-          </p>
-        </div>
-      </Card>
 
       {/* Continue Studying */}
       <section style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
