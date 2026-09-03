@@ -1,4 +1,5 @@
 import { Card } from "@/components/Card";
+import { TutoCharacter } from "@/components/TutoCharacter";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getFirstName } from "@/lib/user";
 import type { NotePreview, SchoolworkPreview } from "@/types";
@@ -29,24 +30,9 @@ export function HomePage() {
   return (
     <div style={{ padding: "var(--space-lg)", display: "flex", flexDirection: "column", gap: "var(--space-xl)" }}>
       {/* Greeting + companion */}
-      <section style={{ display: "flex", alignItems: "center", gap: "var(--space-md)" }}>
-        <div
-          aria-label="Tuto, your study companion"
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: "var(--radius-lg)",
-            background: "var(--color-primary-surface)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          {/* Placeholder for the Tuto character illustration */}
-          <span style={{ fontSize: 28 }}>🍊</span>
-        </div>
-        <div>
+      <section style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-sm)" }}>
+        <TutoCharacter mood="greeting" size={88} />
+        <div style={{ paddingBottom: 4 }}>
           <p style={{ color: "var(--color-text-secondary)", fontSize: "var(--text-sm)" }}>
             {greetingForNow()},
           </p>
@@ -55,11 +41,14 @@ export function HomePage() {
       </section>
 
       {/* Tuto suggestion card */}
-      <Card tinted style={{ display: "flex", flexDirection: "column", gap: "var(--space-2xs)" }}>
-        <p style={{ fontWeight: 700, color: "var(--color-primary-pressed)" }}>Tuto suggests</p>
-        <p style={{ fontSize: "var(--text-md)" }}>
-          Your Cell Biology quiz is Friday — want to review your notes tonight?
-        </p>
+      <Card tinted style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+        <TutoCharacter mood="thinking" size={60} style={{ flexShrink: 0 }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2xs)" }}>
+          <p style={{ fontWeight: 700, color: "var(--color-primary-pressed)" }}>Tuto suggests</p>
+          <p style={{ fontSize: "var(--text-md)" }}>
+            Your Cell Biology quiz is Friday — want to review your notes tonight?
+          </p>
+        </div>
       </Card>
 
       {/* Continue Studying */}

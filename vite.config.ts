@@ -40,6 +40,11 @@ export default defineConfig({
       workbox: {
         // Precache the built app shell so it can launch offline once installed.
         globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
+        // The Tuto character illustrations are large source PNGs not needed
+        // for the app shell to boot offline — exclude them from precache so
+        // installing the PWA stays fast. They still load normally over the
+        // network like any other image.
+        globIgnores: ["tuto/**"],
       },
     }),
   ],
