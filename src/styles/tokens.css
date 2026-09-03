@@ -1,0 +1,81 @@
+/*
+  Tuto design tokens.
+  Warm, modern orange identity — sibling to Auron (purple) and Timo (blue).
+  Components should reference these variables rather than hardcoding values.
+*/
+
+:root {
+  /* ---- Brand scale ---- */
+  --tuto-orange-50: #fef4ec;
+  --tuto-orange-100: #fde6d3;
+  --tuto-orange-200: #fac9a2;
+  --tuto-orange-300: #f3701b;
+  --tuto-orange-400: #e2650f;
+  --tuto-orange-500: #c8560c;
+
+  /* ---- Semantic: brand ---- */
+  --color-primary: #f3701b;
+  --color-primary-hover: #e2650f;
+  --color-primary-pressed: #c8560c;
+  --color-primary-surface: #fdece0;
+  --color-primary-surface-strong: #fbd9c0;
+  --color-on-primary: #fffaf6;
+
+  /* ---- Neutral surfaces ---- */
+  --color-bg: #fffaf6;
+  --color-bg-alt: #fdf3ec;
+  --color-card: #ffffff;
+  --color-card-alt: #fef7f1;
+  --color-border: #f0e3d6;
+  --color-border-strong: #e6d3bf;
+
+  /* ---- Text ---- */
+  --color-text-primary: #241c15;
+  --color-text-secondary: #8a7566;
+  --color-text-tertiary: #b6a693;
+  --color-text-on-primary: #fffaf6;
+
+  /* ---- Status ---- */
+  --color-success: #2f9e5b;
+  --color-success-surface: #e6f6ec;
+  --color-warning: #d98d15;
+  --color-warning-surface: #fbf0dc;
+  --color-danger: #d94f3f;
+  --color-danger-surface: #fbe8e5;
+
+  /* ---- Radius ---- */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  /* ---- Spacing ---- */
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* ---- Shadow ---- */
+  --shadow-sm: 0 1px 2px rgba(36, 28, 21, 0.06);
+  --shadow-md: 0 6px 20px rgba(217, 111, 32, 0.10);
+  --shadow-card: 0 2px 10px rgba(36, 28, 21, 0.05);
+
+  /* ---- Typography ---- */
+  --font-display: "Plus Jakarta Sans", "Manrope", system-ui, sans-serif;
+  --font-body: "Manrope", system-ui, sans-serif;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 19px;
+  --text-xl: 24px;
+  --text-2xl: 30px;
+
+  /* ---- Layout ---- */
+  --app-max-width: 480px;
+  --bottom-nav-height: 72px;
+  --top-bar-height: 56px;
+}

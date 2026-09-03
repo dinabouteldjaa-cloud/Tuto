@@ -1,0 +1,19 @@
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as
+  | string
+  | undefined;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  // Fail loudly in dev rather than silently breaking auth later.
+  // eslint-disable-next-line no-console
+  console.error(
+    "Missing Supabase environment variables. Check your .env file against .env.example."
+  );
+}
+
+export const supabase = createClient(
+  supabaseUrl ?? "",
+  supabaseAnonKey ?? ""
+);
