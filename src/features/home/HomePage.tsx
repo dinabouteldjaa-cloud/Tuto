@@ -30,13 +30,15 @@ export function HomePage() {
   return (
     <div style={{ padding: "var(--space-lg)", display: "flex", flexDirection: "column", gap: "var(--space-xl)" }}>
       {/* Tuto hero — one character handles both the greeting and the insight */}
-      <section
+      <Card
+        tinted
         style={{
           display: "flex",
           alignItems: "center",
           gap: "var(--space-sm)",
         }}
       >
+        <TutoCharacter mood="greeting" size={140} style={{ flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
           <div>
             <p style={{ color: "var(--color-text-secondary)", fontSize: "var(--text-sm)" }}>
@@ -60,8 +62,7 @@ export function HomePage() {
             </p>
           </div>
         </div>
-        <TutoCharacter mood="greeting" size={150} style={{ flexShrink: 0 }} />
-      </section>
+      </Card>
 
       {/* Continue Studying */}
       <section style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
