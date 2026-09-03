@@ -2,9 +2,11 @@ import { TopBar } from "@/components/TopBar";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { useAuth } from "@/features/auth/AuthContext";
+import { getDisplayName } from "@/lib/user";
 
 export function ProfilePage() {
   const { user, signOut } = useAuth();
+  const displayName = getDisplayName(user);
 
   return (
     <div>
@@ -26,10 +28,10 @@ export function ProfilePage() {
               flexShrink: 0,
             }}
           >
-            {user?.email?.[0]?.toUpperCase() ?? "?"}
+            {displayName[0]?.toUpperCase() ?? "?"}
           </div>
           <div style={{ minWidth: 0 }}>
-            <p style={{ fontWeight: 600 }}>Signed in</p>
+            <p style={{ fontWeight: 600 }}>{displayName}</p>
             <p
               style={{
                 fontSize: "var(--text-sm)",

@@ -14,7 +14,11 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (
+    name: string,
+    email: string,
+    password: string
+  ) => Promise<{ error: string | null }>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
@@ -54,9 +58,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         return { error: error?.message ?? null };
       },
-      signUp: async (email, password) => {
-        const { error } = await supabase.auth.signUp({ email, password });
-        return { error: error?.message ?? null };
+      signUp: async (name, email, password) => {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: name.trim() },
+          },
+        });
+        if (error) {
+          return { error: error.message };
+        }
+        // Email confirmation is disabled, so signUp already returns an
+        // active session. Set it immediately rather than waiting for the
+        // next auth state change event, so the app can navigate straight in.
+        if (data.session) {
+          setSession(data.session);
+        }
+        return { error: null };
       },
       resetPassword: async (email) => {
         const { error } = await supabase.auth.resetPasswordForEmail(email);

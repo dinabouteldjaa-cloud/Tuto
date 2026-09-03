@@ -8,37 +8,25 @@ import { useAuth } from "./AuthContext";
 export function SignUpPage() {
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [confirmationSent, setConfirmationSent] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
-    const { error: signUpError } = await signUp(email, password);
-    setIsSubmitting(false);
+    const { error: signUpError } = await signUp(name, email, password);
     if (signUpError) {
+      setIsSubmitting(false);
       setError(signUpError);
       return;
     }
-    setConfirmationSent(true);
-  }
-
-  if (confirmationSent) {
-    return (
-      <AuthLayout
-        eyebrow="Almost there"
-        title="Check your inbox"
-        subtitle={`We sent a confirmation link to ${email}. Confirm your email, then log in.`}
-      >
-        <Button fullWidth onClick={() => navigate("/login")}>
-          Go to login
-        </Button>
-      </AuthLayout>
-    );
+    // Email confirmation is disabled, so the account is active immediately —
+    // go straight into the app instead of showing a "check your inbox" screen.
+    navigate("/", { replace: true });
   }
 
   return (
@@ -56,6 +44,14 @@ export function SignUpPage() {
       }
     >
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+        <Input
+          label="Name"
+          type="text"
+          autoComplete="name"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
         <Input
           label="Email"
           type="email"

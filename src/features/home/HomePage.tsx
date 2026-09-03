@@ -1,5 +1,6 @@
 import { Card } from "@/components/Card";
 import { useAuth } from "@/features/auth/AuthContext";
+import { getFirstName } from "@/lib/user";
 import type { NotePreview, SchoolworkPreview } from "@/types";
 
 const upcomingSchoolwork: SchoolworkPreview[] = [
@@ -23,7 +24,7 @@ function greetingForNow() {
 
 export function HomePage() {
   const { user } = useAuth();
-  const firstName = user?.email?.split("@")[0] ?? "there";
+  const firstName = getFirstName(user);
 
   return (
     <div style={{ padding: "var(--space-lg)", display: "flex", flexDirection: "column", gap: "var(--space-xl)" }}>
