@@ -3,7 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#F97316" />
+
+    <!-- Theme color (matches Tuto's brand orange token) -->
+    <meta name="theme-color" content="#f3701b" />
+
+    <!-- Generic / Android PWA install + standalone launch -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Tuto" />
+
+    <!-- iOS-specific compatibility: needed only because iOS Safari does not
+         yet read mobile-web-app-capable/manifest display mode for standalone
+         launch; harmless no-ops elsewhere. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Tuto" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
     <title>Tuto — Your study companion</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
