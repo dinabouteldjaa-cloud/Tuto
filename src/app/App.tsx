@@ -4,7 +4,9 @@ import { LoginPage } from "@/features/auth/LoginPage";
 import { SignUpPage } from "@/features/auth/SignUpPage";
 import { ForgotPasswordPage } from "@/features/auth/ForgotPasswordPage";
 import { HomePage } from "@/features/home/HomePage";
-import { NotesPage } from "@/features/notes/NotesPage";
+import { SubjectsPage } from "@/features/notes/SubjectsPage";
+import { SubjectDetailPage } from "@/features/notes/SubjectDetailPage";
+import { NoteEditorPage } from "@/features/notes/NoteEditorPage";
 import { SchoolworkPage } from "@/features/schoolwork/SchoolworkPage";
 import { ProfilePage } from "@/features/profile/ProfilePage";
 import { AppShell } from "@/components/AppShell";
@@ -34,7 +36,37 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <NotesPage />
+                  <SubjectsPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notes/:subjectId"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <SubjectDetailPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notes/:subjectId/new"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <NoteEditorPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notes/:subjectId/:noteId"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <NoteEditorPage />
                 </AppShell>
               </ProtectedRoute>
             }
