@@ -17,3 +17,15 @@ export interface Note {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface NoteAttachment {
+  id: string;
+  noteId: string;
+  fileName: string;
+  filePath: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
+  /** Time-limited signed URL for viewing/downloading — not persisted. */
+  url: string;
+}

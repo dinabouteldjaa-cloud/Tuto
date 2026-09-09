@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type { NotePreview } from "@/types";
 import { formatUpdatedLabel } from "./format";
-import type { Note, Subject, SubjectWithNoteCount } from "./types";
+import type { Note, NoteAttachment, Subject, SubjectWithNoteCount } from "./types";
 
 interface SubjectRow {
   id: string;
@@ -21,6 +21,30 @@ interface NoteRow {
   content: string;
   created_at: string;
   updated_at: string;
+}
+
+const ATTACHMENTS_BUCKET = "note-attachments";
+// Signed URLs are generated on read (the bucket is private) and are only
+// valid for this long — plenty for a single note-viewing session without
+// staying valid indefinitely if a link were ever copied out of the app.
+const SIGNED_URL_EXPIRES_IN_SECONDS = 60 * 60;
+
+export const MAX_ATTACHMENT_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
+export const ACCEPTED_ATTACHMENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+] as const;
+
+interface NoteAttachmentRow {
+  id: string;
+  note_id: string;
+  file_name: string;
+  file_path: string;
+  file_type: string;
+  file_size: number;
+  created_at: string;
 }
 
 function mapSubject(row: SubjectRow): Subject {
@@ -99,8 +123,45 @@ export async function renameSubject(subjectId: string, name: string): Promise<Su
   return mapSubject(data as SubjectRow);
 }
 
-/** Deletes a subject. Its notes are removed automatically (FK cascade). */
+/**
+ * Deletes any Storage objects belonging to the given notes' attachments.
+ * Must run BEFORE the notes themselves are deleted — once a note is
+ * deleted its note_attachments rows disappear too (FK cascade), and with
+ * them the only record of which Storage paths need cleaning up. DB
+ * cascade alone never touches Storage.
+ */
+async function deleteAttachmentFilesForNotes(noteIds: string[]): Promise<void> {
+  if (noteIds.length === 0) return;
+
+  const { data, error } = await supabase
+    .from("note_attachments")
+    .select("file_path")
+    .in("note_id", noteIds);
+
+  if (error) throw error;
+
+  const paths = (data ?? []).map((row) => row.file_path as string);
+  if (paths.length === 0) return;
+
+  const { error: removeError } = await supabase.storage.from(ATTACHMENTS_BUCKET).remove(paths);
+  if (removeError) throw removeError;
+}
+
+/**
+ * Deletes a subject. Its notes are removed automatically (FK cascade),
+ * but any attachment files those notes had in Storage are cleaned up
+ * explicitly first, so deleting a subject can't orphan files.
+ */
 export async function deleteSubject(subjectId: string): Promise<void> {
+  const { data: notesData, error: notesError } = await supabase
+    .from("notes")
+    .select("id")
+    .eq("subject_id", subjectId);
+  if (notesError) throw notesError;
+
+  const noteIds = (notesData ?? []).map((row) => row.id as string);
+  await deleteAttachmentFilesForNotes(noteIds);
+
   const { error } = await supabase.from("subjects").delete().eq("id", subjectId);
   if (error) throw error;
 }
@@ -159,8 +220,99 @@ export async function updateNote(noteId: string, title: string, content: string)
   return mapNote(data as NoteRow);
 }
 
+/**
+ * Deletes a note. Its note_attachments rows are removed automatically
+ * (FK cascade), but their Storage files are cleaned up explicitly first —
+ * cascade never touches Storage on its own.
+ */
 export async function deleteNote(noteId: string): Promise<void> {
+  await deleteAttachmentFilesForNotes([noteId]);
   const { error } = await supabase.from("notes").delete().eq("id", noteId);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------
+// Attachments (images + PDFs)
+// ---------------------------------------------------------------------
+
+async function withSignedUrl(row: NoteAttachmentRow): Promise<NoteAttachment> {
+  const { data, error } = await supabase.storage
+    .from(ATTACHMENTS_BUCKET)
+    .createSignedUrl(row.file_path, SIGNED_URL_EXPIRES_IN_SECONDS);
+
+  if (error) throw error;
+
+  return {
+    id: row.id,
+    noteId: row.note_id,
+    fileName: row.file_name,
+    filePath: row.file_path,
+    fileType: row.file_type,
+    fileSize: row.file_size,
+    createdAt: row.created_at,
+    url: data.signedUrl,
+  };
+}
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+}
+
+export async function listAttachments(noteId: string): Promise<NoteAttachment[]> {
+  const { data, error } = await supabase
+    .from("note_attachments")
+    .select("id, note_id, file_name, file_path, file_type, file_size, created_at")
+    .eq("note_id", noteId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return Promise.all(((data ?? []) as NoteAttachmentRow[]).map(withSignedUrl));
+}
+
+export async function uploadAttachment(
+  userId: string,
+  noteId: string,
+  file: File
+): Promise<NoteAttachment> {
+  const uniqueName = `${crypto.randomUUID()}-${sanitizeFileName(file.name)}`;
+  const path = `${userId}/${noteId}/${uniqueName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(ATTACHMENTS_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false });
+
+  if (uploadError) throw uploadError;
+
+  const { data, error } = await supabase
+    .from("note_attachments")
+    .insert({
+      user_id: userId,
+      note_id: noteId,
+      file_name: file.name,
+      file_path: path,
+      file_type: file.type,
+      file_size: file.size,
+    })
+    .select("id, note_id, file_name, file_path, file_type, file_size, created_at")
+    .single();
+
+  if (error) {
+    // The file uploaded but the metadata row failed — remove the orphaned
+    // Storage object rather than leaving an untracked file behind.
+    await supabase.storage.from(ATTACHMENTS_BUCKET).remove([path]);
+    throw error;
+  }
+
+  return withSignedUrl(data as NoteAttachmentRow);
+}
+
+export async function deleteAttachment(attachment: NoteAttachment): Promise<void> {
+  const { error: storageError } = await supabase.storage
+    .from(ATTACHMENTS_BUCKET)
+    .remove([attachment.filePath]);
+  if (storageError) throw storageError;
+
+  const { error } = await supabase.from("note_attachments").delete().eq("id", attachment.id);
   if (error) throw error;
 }
 
