@@ -33,6 +33,16 @@ interface DrawingCanvasProps {
   tool: DrawingTool;
   /** 0, 1, or 2 — small/medium/large, per the thickness selector. */
   thicknessStep: 0 | 1 | 2;
+  /**
+   * Strokes to seed the canvas with, used only at construction time (like
+   * an uncontrolled input's `defaultValue`). Pass this instead of calling
+   * the `loadStrokes` ref method right after mount — a ref set in the same
+   * effect that unmounts the loading state and mounts this canvas can race
+   * and silently miss, since `ref.current` isn't guaranteed populated yet
+   * when that effect runs. Only mount this component once the real
+   * initial data is known, the same pattern used by RichTextEditor.
+   */
+  initialStrokes?: Stroke[];
   onChange?: (strokes: Stroke[]) => void;
   /** Fires once after the canvas has its real pixel size (post-mount/resize). */
   onReady?: () => void;
@@ -72,11 +82,11 @@ function strokeNearPoint(stroke: Stroke, point: StrokePoint, radius: number): bo
  * required for accurate replay and future editing.
  */
 export const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
-  function DrawingCanvas({ tool, thicknessStep, onChange, onReady }, ref) {
+  function DrawingCanvas({ tool, thicknessStep, initialStrokes, onChange, onReady }, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [strokes, setStrokes] = useState<Stroke[]>([]);
-    const strokesRef = useRef<Stroke[]>([]);
+    const [strokes, setStrokes] = useState<Stroke[]>(initialStrokes ?? []);
+    const strokesRef = useRef<Stroke[]>(initialStrokes ?? []);
     const undoStackRef = useRef<Stroke[][]>([]);
     const redoStackRef = useRef<Stroke[][]>([]);
     const currentStrokeRef = useRef<Stroke | null>(null);

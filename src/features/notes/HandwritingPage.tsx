@@ -8,7 +8,7 @@ import { getAnnotation } from "./api";
 import { DrawingCanvas, type DrawingCanvasHandle } from "./DrawingCanvas";
 import { DrawingToolbar } from "./DrawingToolbar";
 import { useAnnotationAutosave } from "./useAnnotationAutosave";
-import type { DrawingTool } from "./types";
+import type { DrawingTool, Stroke } from "./types";
 
 export function HandwritingPage() {
   const { subjectId, noteId } = useParams<{ subjectId: string; noteId: string }>();
@@ -22,6 +22,13 @@ export function HandwritingPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [historyTick, setHistoryTick] = useState(0);
+  // Holds the loaded strokes until the canvas mounts. Fixed a real bug:
+  // calling canvasRef.current?.loadStrokes(...) inside the same effect
+  // that flips isLoading to false raced against the canvas actually
+  // mounting — ref.current was still null at that point, so the loaded
+  // strokes were silently dropped. The canvas now only ever mounts once
+  // this is already populated, via the initialStrokes prop below.
+  const [initialStrokes, setInitialStrokes] = useState<Stroke[]>([]);
 
   const { status, errorMessage, notifyChange } = useAnnotationAutosave({
     userId: user?.id ?? null,
@@ -37,7 +44,7 @@ export function HandwritingPage() {
       try {
         const annotation = await getAnnotation(noteId, null, 1);
         if (cancelled) return;
-        if (annotation) canvasRef.current?.loadStrokes(annotation.strokes);
+        if (annotation) setInitialStrokes(annotation.strokes);
       } catch (err) {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : "Couldn't load your drawing.");
       } finally {
@@ -120,7 +127,13 @@ export function HandwritingPage() {
             {loadError}
           </p>
         ) : (
-          <DrawingCanvas ref={canvasRef} tool={tool} thicknessStep={thicknessStep} onChange={handleChange} />
+          <DrawingCanvas
+            ref={canvasRef}
+            tool={tool}
+            thicknessStep={thicknessStep}
+            initialStrokes={initialStrokes}
+            onChange={handleChange}
+          />
         )}
       </div>
 

@@ -10,7 +10,7 @@ import { getAnnotation, getAttachment } from "./api";
 import { DrawingCanvas, type DrawingCanvasHandle } from "./DrawingCanvas";
 import { DrawingToolbar } from "./DrawingToolbar";
 import { useAnnotationAutosave } from "./useAnnotationAutosave";
-import type { DrawingTool, NoteAttachment } from "./types";
+import type { DrawingTool, NoteAttachment, Stroke } from "./types";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -73,6 +73,11 @@ export function PdfAnnotationPage() {
   const [thicknessStep, setThicknessStep] = useState<0 | 1 | 2>(1);
   const [isPageAnnotationLoading, setIsPageAnnotationLoading] = useState(true);
   const [historyTick, setHistoryTick] = useState(0);
+  // See HandwritingPage for why this exists: calling
+  // canvasRef.current?.loadStrokes(...) in the same effect that flips
+  // isPageAnnotationLoading to false raced against the (conditionally
+  // rendered) canvas actually mounting, silently dropping loaded strokes.
+  const [initialStrokes, setInitialStrokes] = useState<Stroke[]>([]);
 
   const canvasRef = useRef<DrawingCanvasHandle>(null);
 
@@ -106,11 +111,12 @@ export function PdfAnnotationPage() {
     if (!noteId || !attachmentId) return;
     let cancelled = false;
     setIsPageAnnotationLoading(true);
+    setInitialStrokes([]);
     (async () => {
       try {
         const annotation = await getAnnotation(noteId, attachmentId, pageNumber);
         if (cancelled) return;
-        if (annotation) canvasRef.current?.loadStrokes(annotation.strokes);
+        if (annotation) setInitialStrokes(annotation.strokes);
       } catch {
         // Non-fatal: worst case this page opens with a blank overlay and
         // any existing marks simply won't be visible until reload.
@@ -223,6 +229,7 @@ export function PdfAnnotationPage() {
                   ref={canvasRef}
                   tool={tool}
                   thicknessStep={thicknessStep}
+                  initialStrokes={initialStrokes}
                   onChange={handleChange}
                 />
               </div>
