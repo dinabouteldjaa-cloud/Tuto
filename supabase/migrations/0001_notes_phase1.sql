@@ -60,6 +60,19 @@ before update on public.notes
 for each row execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------------
+-- Grants
+--
+-- RLS policies decide *which rows* a user can see/touch, but the
+-- `authenticated` role also needs baseline SQL privileges on the schema
+-- and tables before those policies are ever evaluated. Without these
+-- grants, every request from a logged-in user is rejected outright.
+-- ---------------------------------------------------------------------
+
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on table public.subjects to authenticated;
+grant select, insert, update, delete on table public.notes to authenticated;
+
+-- ---------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------
 

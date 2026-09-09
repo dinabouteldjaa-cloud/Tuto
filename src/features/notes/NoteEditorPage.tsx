@@ -7,7 +7,8 @@ import { LoadingState } from "@/components/LoadingState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAuth } from "@/features/auth/AuthContext";
 import { createNote, deleteNote, getNote, updateNote } from "./api";
-import { formatUpdatedLabel } from "./format";
+import { formatUpdatedLabel, isRichContent, plainTextToHtml } from "./format";
+import { RichTextEditor } from "./RichTextEditor";
 import type { Note } from "./types";
 
 function TrashIcon() {
@@ -48,7 +49,7 @@ export function NoteEditorPage() {
         if (cancelled) return;
         setNote(data);
         setTitle(data.title);
-        setContent(data.content);
+        setContent(isRichContent(data.content) ? data.content : plainTextToHtml(data.content));
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Couldn't load this note.");
       } finally {
@@ -132,24 +133,7 @@ export function NoteEditorPage() {
           }}
         />
 
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Start writing…"
-          rows={14}
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "var(--text-md)",
-            lineHeight: 1.6,
-            border: "none",
-            outline: "none",
-            resize: "vertical",
-            background: "transparent",
-            color: "var(--color-text-primary)",
-            padding: 0,
-            minHeight: "40vh",
-          }}
-        />
+        <RichTextEditor content={content} onChange={setContent} placeholder="Start writing…" />
 
         {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}
 

@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "@/features/auth/AuthContext";
 import { LoginPage } from "@/features/auth/LoginPage";
@@ -6,11 +7,18 @@ import { ForgotPasswordPage } from "@/features/auth/ForgotPasswordPage";
 import { HomePage } from "@/features/home/HomePage";
 import { SubjectsPage } from "@/features/notes/SubjectsPage";
 import { SubjectDetailPage } from "@/features/notes/SubjectDetailPage";
-import { NoteEditorPage } from "@/features/notes/NoteEditorPage";
 import { SchoolworkPage } from "@/features/schoolwork/SchoolworkPage";
 import { ProfilePage } from "@/features/profile/ProfilePage";
 import { AppShell } from "@/components/AppShell";
+import { LoadingState } from "@/components/LoadingState";
 import { ProtectedRoute } from "./ProtectedRoute";
+
+// The note editor pulls in the rich text editor (Tiptap), which is
+// sizeable — load it only when someone actually opens a note, rather
+// than shipping it in the main bundle for every page.
+const NoteEditorPage = lazy(() =>
+  import("@/features/notes/NoteEditorPage").then((m) => ({ default: m.NoteEditorPage }))
+);
 
 export default function App() {
   return (
@@ -56,7 +64,9 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <NoteEditorPage />
+                  <Suspense fallback={<LoadingState label="Loading editor…" />}>
+                    <NoteEditorPage />
+                  </Suspense>
                 </AppShell>
               </ProtectedRoute>
             }
@@ -66,7 +76,9 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <NoteEditorPage />
+                  <Suspense fallback={<LoadingState label="Loading editor…" />}>
+                    <NoteEditorPage />
+                  </Suspense>
                 </AppShell>
               </ProtectedRoute>
             }
