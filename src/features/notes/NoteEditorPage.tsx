@@ -50,6 +50,19 @@ function AttachIcon() {
   );
 }
 
+function DrawIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function NoteEditorPage() {
   const { subjectId, noteId } = useParams<{ subjectId: string; noteId?: string }>();
   const navigate = useNavigate();
@@ -176,6 +189,20 @@ export function NoteEditorPage() {
     setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
   }
 
+  async function handleOpenDraw() {
+    try {
+      const targetNote = await ensureNoteExists();
+      navigate(`/notes/${subjectId}/${targetNote.id}/draw`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't open the drawing page.");
+    }
+  }
+
+  function handleOpenPdf(attachment: NoteAttachment) {
+    if (!note) return;
+    navigate(`/notes/${subjectId}/${note.id}/attachments/${attachment.id}`);
+  }
+
   async function handleDeleteConfirmed() {
     if (!note) return;
     setIsDeleting(true);
@@ -231,12 +258,32 @@ export function NoteEditorPage() {
         <RichTextEditor content={content} onChange={setContent} placeholder="Start writing…" />
 
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
-          <div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-sm)" }}>
+            <div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "var(--space-2xs)",
+                  width: "auto",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <AttachIcon />
+                {isUploading ? "Uploading…" : "Add attachment"}
+              </Button>
+              <p style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", marginTop: "var(--space-2xs)" }}>
+                JPG, PNG, WebP, or PDF · up to 15 MB
+              </p>
+            </div>
             <Button
               type="button"
               variant="secondary"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
+              onClick={handleOpenDraw}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -245,12 +292,9 @@ export function NoteEditorPage() {
                 whiteSpace: "nowrap",
               }}
             >
-              <AttachIcon />
-              {isUploading ? "Uploading…" : "Add attachment"}
+              <DrawIcon />
+              Draw
             </Button>
-            <p style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", marginTop: "var(--space-2xs)" }}>
-              JPG, PNG, WebP, or PDF · up to 15 MB
-            </p>
           </div>
           <input
             ref={fileInputRef}
@@ -264,7 +308,7 @@ export function NoteEditorPage() {
             <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{attachmentError}</p>
           )}
 
-          <AttachmentList attachments={attachments} onDelete={handleDeleteAttachment} />
+          <AttachmentList attachments={attachments} onDelete={handleDeleteAttachment} onOpenPdf={handleOpenPdf} />
         </div>
 
         {error && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{error}</p>}

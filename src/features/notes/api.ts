@@ -1,7 +1,14 @@
 import { supabase } from "@/lib/supabase";
 import type { NotePreview } from "@/types";
 import { formatUpdatedLabel } from "./format";
-import type { Note, NoteAttachment, Subject, SubjectWithNoteCount } from "./types";
+import type {
+  Note,
+  NoteAnnotation,
+  NoteAttachment,
+  Stroke,
+  Subject,
+  SubjectWithNoteCount,
+} from "./types";
 
 interface SubjectRow {
   id: string;
@@ -269,6 +276,17 @@ export async function listAttachments(noteId: string): Promise<NoteAttachment[]>
   return Promise.all(((data ?? []) as NoteAttachmentRow[]).map(withSignedUrl));
 }
 
+export async function getAttachment(attachmentId: string): Promise<NoteAttachment> {
+  const { data, error } = await supabase
+    .from("note_attachments")
+    .select("id, note_id, file_name, file_path, file_type, file_size, created_at")
+    .eq("id", attachmentId)
+    .single();
+
+  if (error) throw error;
+  return withSignedUrl(data as NoteAttachmentRow);
+}
+
 export async function uploadAttachment(
   userId: string,
   noteId: string,
@@ -314,6 +332,104 @@ export async function deleteAttachment(attachment: NoteAttachment): Promise<void
 
   const { error } = await supabase.from("note_attachments").delete().eq("id", attachment.id);
   if (error) throw error;
+}
+
+// ---------------------------------------------------------------------
+// Annotations (handwriting + PDF page overlays)
+// ---------------------------------------------------------------------
+
+interface NoteAnnotationRow {
+  id: string;
+  note_id: string;
+  attachment_id: string | null;
+  page_number: number;
+  data: { strokes: Stroke[] };
+  updated_at: string;
+}
+
+function mapAnnotation(row: NoteAnnotationRow): NoteAnnotation {
+  return {
+    id: row.id,
+    noteId: row.note_id,
+    attachmentId: row.attachment_id,
+    pageNumber: row.page_number,
+    strokes: row.data?.strokes ?? [],
+    updatedAt: row.updated_at,
+  };
+}
+
+function annotationTargetQuery(
+  noteId: string,
+  attachmentId: string | null,
+  pageNumber: number
+) {
+  let query = supabase
+    .from("note_annotations")
+    .select("id, note_id, attachment_id, page_number, data, updated_at")
+    .eq("note_id", noteId)
+    .eq("page_number", pageNumber);
+  query = attachmentId ? query.eq("attachment_id", attachmentId) : query.is("attachment_id", null);
+  return query;
+}
+
+/** Returns null if this page has never been drawn on yet — that's normal,
+ * not an error. */
+export async function getAnnotation(
+  noteId: string,
+  attachmentId: string | null,
+  pageNumber: number
+): Promise<NoteAnnotation | null> {
+  const { data, error } = await annotationTargetQuery(noteId, attachmentId, pageNumber).maybeSingle();
+  if (error) throw error;
+  return data ? mapAnnotation(data as NoteAnnotationRow) : null;
+}
+
+/**
+ * Saves the full current stroke set for one drawable page (a handwriting
+ * page, or one page of a PDF). Explicit select-then-insert-or-update
+ * rather than a DB-level upsert, since the "one row per target" rule
+ * involves a NULLable attachment_id that plain unique constraints (and
+ * PostgREST's upsert conflict target) don't handle cleanly. A unique
+ * index still exists as a safety net (see the migration).
+ */
+export async function saveAnnotation(
+  userId: string,
+  noteId: string,
+  attachmentId: string | null,
+  pageNumber: number,
+  strokes: Stroke[]
+): Promise<NoteAnnotation> {
+  const { data: existing, error: findError } = await annotationTargetQuery(
+    noteId,
+    attachmentId,
+    pageNumber
+  ).maybeSingle();
+  if (findError) throw findError;
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("note_annotations")
+      .update({ data: { strokes } })
+      .eq("id", (existing as NoteAnnotationRow).id)
+      .select("id, note_id, attachment_id, page_number, data, updated_at")
+      .single();
+    if (error) throw error;
+    return mapAnnotation(data as NoteAnnotationRow);
+  }
+
+  const { data, error } = await supabase
+    .from("note_annotations")
+    .insert({
+      user_id: userId,
+      note_id: noteId,
+      attachment_id: attachmentId,
+      page_number: pageNumber,
+      data: { strokes },
+    })
+    .select("id, note_id, attachment_id, page_number, data, updated_at")
+    .single();
+  if (error) throw error;
+  return mapAnnotation(data as NoteAnnotationRow);
 }
 
 // ---------------------------------------------------------------------

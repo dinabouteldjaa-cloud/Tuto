@@ -55,9 +55,12 @@ function CloseIcon() {
 interface AttachmentListProps {
   attachments: NoteAttachment[];
   onDelete: (attachment: NoteAttachment) => Promise<void>;
+  /** When provided, tapping a PDF calls this instead of opening the raw
+   * signed URL in a new tab — used to route into the in-app PDF viewer. */
+  onOpenPdf?: (attachment: NoteAttachment) => void;
 }
 
-export function AttachmentList({ attachments, onDelete }: AttachmentListProps) {
+export function AttachmentList({ attachments, onDelete, onOpenPdf }: AttachmentListProps) {
   const [viewingImage, setViewingImage] = useState<NoteAttachment | null>(null);
   const [attachmentToDelete, setAttachmentToDelete] = useState<NoteAttachment | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -154,41 +157,81 @@ export function AttachmentList({ attachments, onDelete }: AttachmentListProps) {
                 background: "var(--color-card-alt)",
               }}
             >
-              <a
-                href={attachment.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-xs)",
-                  textDecoration: "none",
-                  color: "var(--color-text-primary)",
-                  minWidth: 0,
-                  flex: 1,
-                }}
-              >
-                <span style={{ color: "var(--color-primary)", flexShrink: 0 }}>
-                  <PdfIcon />
-                </span>
-                <span style={{ minWidth: 0 }}>
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: "var(--text-sm)",
-                      fontWeight: 600,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {attachment.fileName}
+              {onOpenPdf ? (
+                <button
+                  onClick={() => onOpenPdf(attachment)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-xs)",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    color: "var(--color-text-primary)",
+                    minWidth: 0,
+                    flex: 1,
+                  }}
+                >
+                  <span style={{ color: "var(--color-primary)", flexShrink: 0 }}>
+                    <PdfIcon />
                   </span>
-                  <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>
-                    {formatFileSize(attachment.fileSize)}
+                  <span style={{ minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "var(--text-sm)",
+                        fontWeight: 600,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {attachment.fileName}
+                    </span>
+                    <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>
+                      {formatFileSize(attachment.fileSize)}
+                    </span>
                   </span>
-                </span>
-              </a>
+                </button>
+              ) : (
+                <a
+                  href={attachment.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-xs)",
+                    textDecoration: "none",
+                    color: "var(--color-text-primary)",
+                    minWidth: 0,
+                    flex: 1,
+                  }}
+                >
+                  <span style={{ color: "var(--color-primary)", flexShrink: 0 }}>
+                    <PdfIcon />
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: "var(--text-sm)",
+                        fontWeight: 600,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {attachment.fileName}
+                    </span>
+                    <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>
+                      {formatFileSize(attachment.fileSize)}
+                    </span>
+                  </span>
+                </a>
+              )}
               <IconButton
                 icon={<TrashIcon />}
                 aria-label={`Remove ${attachment.fileName}`}

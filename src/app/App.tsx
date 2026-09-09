@@ -20,6 +20,16 @@ const NoteEditorPage = lazy(() =>
   import("@/features/notes/NoteEditorPage").then((m) => ({ default: m.NoteEditorPage }))
 );
 
+// Handwriting (canvas) and the PDF viewer (pdf.js, sizeable) are each
+// their own lazy chunk too — neither should load just for opening a
+// plain text note, and the PDF viewer shouldn't load just to draw.
+const HandwritingPage = lazy(() =>
+  import("@/features/notes/HandwritingPage").then((m) => ({ default: m.HandwritingPage }))
+);
+const PdfAnnotationPage = lazy(() =>
+  import("@/features/notes/PdfAnnotationPage").then((m) => ({ default: m.PdfAnnotationPage }))
+);
+
 export default function App() {
   return (
     <AuthProvider>
@@ -80,6 +90,26 @@ export default function App() {
                     <NoteEditorPage />
                   </Suspense>
                 </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notes/:subjectId/:noteId/draw"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<LoadingState label="Loading drawing tools…" />}>
+                  <HandwritingPage />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notes/:subjectId/:noteId/attachments/:attachmentId"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<LoadingState label="Loading PDF viewer…" />}>
+                  <PdfAnnotationPage />
+                </Suspense>
               </ProtectedRoute>
             }
           />
