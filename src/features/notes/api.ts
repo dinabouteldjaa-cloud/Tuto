@@ -5,6 +5,8 @@ import type {
   Note,
   NoteAnnotation,
   NoteAttachment,
+  NoteDocument,
+  NoteDocumentData,
   Stroke,
   Subject,
   SubjectWithNoteCount,
@@ -430,6 +432,81 @@ export async function saveAnnotation(
     .single();
   if (error) throw error;
   return mapAnnotation(data as NoteAnnotationRow);
+}
+
+// ---------------------------------------------------------------------
+// Unified note workspace (Workspace Phase 1)
+// ---------------------------------------------------------------------
+
+interface NoteDocumentRow {
+  id: string;
+  note_id: string;
+  document_data: NoteDocumentData;
+  updated_at: string;
+}
+
+function mapNoteDocument(row: NoteDocumentRow): NoteDocument {
+  return {
+    id: row.id,
+    noteId: row.note_id,
+    data: row.document_data,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Returns null if this note has never been saved in the unified
+ * workspace yet — the caller should synthesize one from legacy data. */
+export async function getNoteDocument(noteId: string): Promise<NoteDocument | null> {
+  const { data, error } = await supabase
+    .from("note_documents")
+    .select("id, note_id, document_data, updated_at")
+    .eq("note_id", noteId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapNoteDocument(data as NoteDocumentRow) : null;
+}
+
+/**
+ * Saves the whole unified document (text + ink together) for a note.
+ * Explicit select-then-insert-or-update, same reasoning as
+ * saveAnnotation: simpler and more robust through the Supabase JS client
+ * than relying on ON CONFLICT upsert semantics.
+ */
+export async function saveNoteDocument(
+  userId: string,
+  noteId: string,
+  documentData: NoteDocumentData
+): Promise<NoteDocument> {
+  const { data: existing, error: findError } = await supabase
+    .from("note_documents")
+    .select("id")
+    .eq("note_id", noteId)
+    .maybeSingle();
+  if (findError) throw findError;
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("note_documents")
+      .update({ document_data: documentData, version: documentData.version })
+      .eq("id", (existing as { id: string }).id)
+      .select("id, note_id, document_data, updated_at")
+      .single();
+    if (error) throw error;
+    return mapNoteDocument(data as NoteDocumentRow);
+  }
+
+  const { data, error } = await supabase
+    .from("note_documents")
+    .insert({
+      user_id: userId,
+      note_id: noteId,
+      version: documentData.version,
+      document_data: documentData,
+    })
+    .select("id, note_id, document_data, updated_at")
+    .single();
+  if (error) throw error;
+  return mapNoteDocument(data as NoteDocumentRow);
 }
 
 // ---------------------------------------------------------------------

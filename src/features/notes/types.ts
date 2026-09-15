@@ -56,3 +56,51 @@ export interface NoteAnnotation {
   strokes: Stroke[];
   updatedAt: string;
 }
+
+// ---------------------------------------------------------------------
+// Unified note workspace (Workspace Phase 1) — text + ink coexisting on
+// one growing/scrolling document. Uses a different coordinate model than
+// Stroke/StrokePoint above: since the document's *height* changes as the
+// user types (unlike a fixed-aspect handwriting page or PDF page, which
+// only changes via uniform zoom), points are stored as pixel coordinates
+// at a fixed reference width rather than normalized 0..1 of current size.
+// Rendering scales both x and y by (currentWidth / baseWidth). This means
+// existing ink never shifts when new text pushes the document taller —
+// only a genuine width change (rotation, different device) rescales it,
+// uniformly and correctly.
+// ---------------------------------------------------------------------
+
+export interface WorkspaceStrokePoint {
+  /** Pixels, measured at the ink layer's baseWidth. */
+  x: number;
+  y: number;
+}
+
+export interface WorkspaceStroke {
+  tool: Exclude<DrawingTool, "eraser">;
+  color: string;
+  /** Line width in pixels, measured at the ink layer's baseWidth. */
+  width: number;
+  points: WorkspaceStrokePoint[];
+}
+
+export interface NoteDocumentInk {
+  /** The container width these strokes' pixel coordinates were authored
+   * at. Established once (from the first stroke drawn, or loaded from a
+   * previously saved document) and reused thereafter. */
+  baseWidth: number;
+  strokes: WorkspaceStroke[];
+}
+
+export interface NoteDocumentData {
+  version: 1;
+  text: { html: string };
+  ink: NoteDocumentInk;
+}
+
+export interface NoteDocument {
+  id: string;
+  noteId: string;
+  data: NoteDocumentData;
+  updatedAt: string;
+}
