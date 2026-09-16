@@ -253,7 +253,14 @@ export function NoteEditorPage() {
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+    // Re-runs once `isLoading` flips to false and the real workspace div
+    // (holding workspaceRef) actually mounts. With `[]` alone, this fired
+    // exactly once — on the very first render, which for any EXISTING
+    // note is still the loading branch (no workspaceRef yet) — and never
+    // again, permanently leaving containerWidth at 0 and silently
+    // breaking image placement. This was the root cause of the "+"
+    // button (and the toolbar Image button) doing nothing.
+  }, [isLoading]);
   // The autosave target reads this directly rather than the reactive
   // `noteId` route param — see useNoteDocumentAutosave's getNoteId doc
   // comment for why that distinction matters for a brand-new note.
@@ -459,21 +466,39 @@ export function NoteEditorPage() {
 
   function placeNewImage(attachment: NoteAttachment, naturalWidth: number, naturalHeight: number) {
     const baseWidth = latestImagesRef.current.baseWidth ?? containerWidth;
-    if (!baseWidth) return; // workspace hasn't laid out yet — shouldn't normally happen
+    if (!baseWidth) {
+      // Shouldn't normally happen now that the ResizeObserver above
+      // re-attaches once the workspace actually mounts — but surface a
+      // clear error instead of silently doing nothing if it ever does.
+      setImageError("Couldn't place this image — try again in a moment.");
+      return;
+    }
 
     const aspect = naturalHeight / naturalWidth || 1;
     const width = Math.min(DEFAULT_IMAGE_WIDTH_AT_BASE, baseWidth - IMAGE_INSET * 2);
     const height = width * aspect;
+    const scale = containerWidth > 0 ? containerWidth / baseWidth : 1;
 
-    // Stack new images down and to the right a little so repeated inserts
-    // don't all land in an identical spot.
+    // Land the image near the top of what the user is CURRENTLY looking
+    // at, not always the very top of a long note — measure how far
+    // they've scrolled into the workspace and convert that to base-width
+    // space.
+    let y = IMAGE_INSET;
+    const rect = workspaceRef.current?.getBoundingClientRect();
+    if (rect && rect.top < 0) {
+      const scrolledIntoWorkspacePx = -rect.top;
+      y = scrolledIntoWorkspacePx / scale + IMAGE_INSET;
+    }
+
+    // Stack repeated inserts near that same spot a little offset from
+    // each other rather than exactly on top of one another.
     const offset = (latestImagesRef.current.items.length % 5) * 18;
 
     const newImage: WorkspaceImage = {
       id: crypto.randomUUID(),
       attachmentId: attachment.id,
       x: IMAGE_INSET + offset,
-      y: IMAGE_INSET + offset,
+      y: y + offset,
       width,
       height,
       zIndex: latestImagesRef.current.items.length + 1,
