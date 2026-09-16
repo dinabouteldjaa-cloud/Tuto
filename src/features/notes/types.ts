@@ -102,6 +102,14 @@ export interface NoteDocumentInk {
 // workspace container.
 // ---------------------------------------------------------------------
 
+export interface WorkspaceImageCrop {
+  /** All fractions 0..1 of the attachment's natural (original) dimensions. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface WorkspaceImage {
   id: string;
   /** Points at the existing note_attachments row — the actual file
@@ -112,6 +120,12 @@ export interface WorkspaceImage {
   width: number;
   height: number;
   zIndex: number;
+  /** Degrees, clockwise. Optional — absent/0 means unrotated. */
+  rotation?: 0 | 90 | 180 | 270;
+  /** Non-destructive crop rectangle. Optional — absent means the full
+   * original image is shown. The original attachment is never modified
+   * or re-uploaded; this is purely display metadata. */
+  crop?: WorkspaceImageCrop;
 }
 
 export interface NoteDocumentImages {

@@ -73,11 +73,9 @@ export default function App() {
             path="/notes/:subjectId/new"
             element={
               <ProtectedRoute>
-                <AppShell>
-                  <Suspense fallback={<LoadingState label="Loading editor…" />}>
-                    <NoteEditorPage />
-                  </Suspense>
-                </AppShell>
+                <Suspense fallback={<LoadingState label="Loading editor…" />}>
+                  <NoteEditorPage />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -85,11 +83,9 @@ export default function App() {
             path="/notes/:subjectId/:noteId"
             element={
               <ProtectedRoute>
-                <AppShell>
-                  <Suspense fallback={<LoadingState label="Loading editor…" />}>
-                    <NoteEditorPage />
-                  </Suspense>
-                </AppShell>
+                <Suspense fallback={<LoadingState label="Loading editor…" />}>
+                  <NoteEditorPage />
+                </Suspense>
               </ProtectedRoute>
             }
           />

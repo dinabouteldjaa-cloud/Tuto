@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { TopBar } from "@/components/TopBar";
+import { BottomNavigation } from "@/components/BottomNavigation";
 import { Button } from "@/components/Button";
 import { IconButton } from "@/components/IconButton";
 import { LoadingState } from "@/components/LoadingState";
@@ -589,9 +590,25 @@ export function NoteEditorPage() {
 
   if (isLoading) {
     return (
-      <div>
-        <TopBar title="Note" onBack={() => navigate(`/notes/${subjectId}`)} />
-        <LoadingState label="Loading note…" />
+      <div style={{ minHeight: "100dvh", background: "var(--color-bg)", display: "flex", justifyContent: "center" }}>
+        <div
+          style={{
+            width: "100%",
+            // Same 480px as the rest of the app at phone widths, but
+            // substantially wider on tablet/desktop — the note editor is
+            // the one screen that benefits from more room. Never
+            // edge-to-edge; still centered with margins at large sizes.
+            maxWidth: "clamp(480px, 92vw, 900px)",
+            minHeight: "100dvh",
+            display: "flex",
+            flexDirection: "column",
+            background: "var(--color-bg)",
+          }}
+        >
+          <TopBar title="Note" onBack={() => navigate(`/notes/${subjectId}`)} />
+          <LoadingState label="Loading note…" />
+          <BottomNavigation />
+        </div>
       </div>
     );
   }
@@ -599,7 +616,18 @@ export function NoteEditorPage() {
   const isDrawMode = mode !== "text";
 
   return (
-    <div>
+    <div style={{ minHeight: "100dvh", background: "var(--color-bg)", display: "flex", justifyContent: "center" }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "clamp(480px, 92vw, 900px)",
+          minHeight: "100dvh",
+          display: "flex",
+          flexDirection: "column",
+          background: "var(--color-bg)",
+          position: "relative",
+        }}
+      >
       <TopBar
         title={isNew ? "New note" : "Edit note"}
         onBack={() => {
@@ -762,15 +790,16 @@ export function NoteEditorPage() {
           );
 
           return (
-            <div ref={workspaceRef} style={{ position: "relative", minHeight: workspaceMinHeight }}>
+            <div
+              ref={workspaceRef}
+              onClick={() => {
+                if (!isDrawMode) setSelectedImageId(null);
+              }}
+              style={{ position: "relative", minHeight: workspaceMinHeight }}
+            >
               <RichTextEditor content={initialTextHtml} onChange={handleTextChange} placeholder="Start writing…" />
 
-              <div
-                onClick={() => {
-                  if (!isDrawMode) setSelectedImageId(null);
-                }}
-                style={{ position: "absolute", inset: 0, pointerEvents: isDrawMode ? "none" : "auto" }}
-              >
+              <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
                 {images.map((image) => {
                   const url = attachmentUrlById.get(image.attachmentId);
                   if (!url) return null; // attachment was deleted elsewhere — nothing to show
@@ -855,6 +884,7 @@ export function NoteEditorPage() {
             onDelete={handleDeleteAttachment}
             onOpenPdf={handleOpenPdf}
             onInsertImage={handleInsertExistingImage}
+            hiddenAttachmentIds={new Set(images.map((img) => img.attachmentId))}
           />
         </div>
 
@@ -873,6 +903,8 @@ export function NoteEditorPage() {
         onConfirm={handleDeleteConfirmed}
         onCancel={() => setConfirmDelete(false)}
       />
+        <BottomNavigation />
+      </div>
     </div>
   );
 }

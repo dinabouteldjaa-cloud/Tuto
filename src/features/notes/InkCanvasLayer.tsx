@@ -221,6 +221,20 @@ export const InkCanvasLayer = forwardRef<InkCanvasLayerHandle, InkCanvasLayerPro
     function handlePointerDown(e: ReactPointerEvent<HTMLCanvasElement>) {
       if (!active || drawingPointerIdRef.current !== null) return;
       if (e.pointerType === "touch" && !allowTouchDrawing) return; // let native scroll proceed
+
+      // touch-action is static CSS the browser reads before a contact
+      // begins — it can't be conditioned on pointerType in advance. So
+      // for pen (and mouse), lock it to "none" for JUST this stroke,
+      // synchronously, before the browser can commit to treating the
+      // movement as a native pan/scroll. Restored in handlePointerUp.
+      // This is what actually stops Apple Pencil from scrolling the
+      // page — the steady-state touchAction below only covers the
+      // finger-touch case.
+      if (e.pointerType !== "touch" && canvasRef.current) {
+        canvasRef.current.style.touchAction = "none";
+      }
+      e.preventDefault();
+
       try {
         canvasRef.current?.setPointerCapture(e.pointerId);
       } catch {
@@ -251,6 +265,7 @@ export const InkCanvasLayer = forwardRef<InkCanvasLayerHandle, InkCanvasLayerPro
 
     function handlePointerMove(e: ReactPointerEvent<HTMLCanvasElement>) {
       if (drawingPointerIdRef.current !== e.pointerId) return;
+      if (e.pointerType !== "touch") e.preventDefault();
       const point = pointFromEvent(e);
 
       if (tool === "eraser") {
@@ -272,6 +287,11 @@ export const InkCanvasLayer = forwardRef<InkCanvasLayerHandle, InkCanvasLayerPro
         canvasRef.current?.releasePointerCapture(e.pointerId);
       } catch {
         // Fine if it was never actually captured.
+      }
+      // Restore the steady-state touch-action now that this stroke is
+      // done, so a later finger touch can scroll normally again.
+      if (canvasRef.current) {
+        canvasRef.current.style.touchAction = active && allowTouchDrawing ? "none" : "auto";
       }
 
       const finished = currentStrokeRef.current;

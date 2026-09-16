@@ -70,9 +70,20 @@ interface AttachmentListProps {
    * action that places the existing attachment into the workspace
    * without re-uploading or duplicating the Storage object. */
   onInsertImage?: (attachment: NoteAttachment) => void;
+  /** Attachment IDs already placed in the note workspace — hidden from
+   * this list so an inline image doesn't also feel like a separate
+   * attachment bolted onto the bottom of the note. The note_attachments
+   * row still exists (Storage needs it); it's just not shown twice. */
+  hiddenAttachmentIds?: Set<string>;
 }
 
-export function AttachmentList({ attachments, onDelete, onOpenPdf, onInsertImage }: AttachmentListProps) {
+export function AttachmentList({
+  attachments,
+  onDelete,
+  onOpenPdf,
+  onInsertImage,
+  hiddenAttachmentIds,
+}: AttachmentListProps) {
   const [viewingImage, setViewingImage] = useState<NoteAttachment | null>(null);
   const [attachmentToDelete, setAttachmentToDelete] = useState<NoteAttachment | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -87,10 +98,12 @@ export function AttachmentList({ attachments, onDelete, onOpenPdf, onInsertImage
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [viewingImage]);
 
-  if (attachments.length === 0) return null;
-
-  const images = attachments.filter((a) => isImageAttachment(a.fileType));
+  const images = attachments
+    .filter((a) => isImageAttachment(a.fileType))
+    .filter((a) => !hiddenAttachmentIds?.has(a.id));
   const files = attachments.filter((a) => !isImageAttachment(a.fileType));
+
+  if (images.length === 0 && files.length === 0) return null;
 
   async function handleDeleteConfirmed() {
     if (!attachmentToDelete) return;
