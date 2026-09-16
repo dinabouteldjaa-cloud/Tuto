@@ -22,6 +22,7 @@ import { isRichContent, plainTextToHtml } from "./format";
 import { RichTextEditor } from "./RichTextEditor";
 import { AttachmentList } from "./AttachmentList";
 import { InkCanvasLayer, type InkCanvasLayerHandle } from "./InkCanvasLayer";
+import { WorkspaceImageObject } from "./WorkspaceImageObject";
 import { useNoteDocumentAutosave } from "./useNoteDocumentAutosave";
 import type {
   DrawingTool,
@@ -29,8 +30,13 @@ import type {
   NoteAttachment,
   NoteDocumentData,
   Stroke,
+  WorkspaceImage,
   WorkspaceStroke,
 } from "./types";
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const DEFAULT_IMAGE_WIDTH_AT_BASE = 220;
+const IMAGE_INSET = 16; // px at baseWidth, default placement margin
 
 type WorkspaceMode = "text" | DrawingTool;
 
@@ -74,6 +80,16 @@ function FingerIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="8.5" cy="9.5" r="1.6" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M4.5 16.5 9 12l3 3 4-4.5 4 5.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -208,6 +224,36 @@ export function NoteEditorPage() {
     strokes: [],
     baseWidth: null,
   });
+
+  // Inline images: layout only, referencing existing note_attachments rows.
+  const [images, setImages] = useState<WorkspaceImage[]>([]);
+  const [imagesBaseWidth, setImagesBaseWidth] = useState<number | null>(null);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const latestImagesRef = useRef<{ items: WorkspaceImage[]; baseWidth: number | null }>({
+    items: [],
+    baseWidth: null,
+  });
+
+  // Independent of InkCanvasLayer's own internal measurement — tracks the
+  // same workspace wrapper's width so images can compute their own scale
+  // and so the wrapper's height can grow to fit images placed low on the
+  // page, without touching the proven ink system at all.
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const el = workspaceRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setContainerWidth(width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   // The autosave target reads this directly rather than the reactive
   // `noteId` route param — see useNoteDocumentAutosave's getNoteId doc
   // comment for why that distinction matters for a brand-new note.
@@ -235,8 +281,22 @@ export function NoteEditorPage() {
       version: 1,
       text: { html: latestTextHtmlRef.current },
       ink: { baseWidth: baseWidth ?? 0, strokes: latestInkRef.current.strokes },
+      images: {
+        baseWidth: latestImagesRef.current.baseWidth ?? 0,
+        items: latestImagesRef.current.items,
+      },
     };
     notifyChange(documentData);
+  }
+
+  /** Updates images state + the ref the save payload reads, together, so
+   * they never drift apart. Then triggers the existing debounced save —
+   * the same single pipeline text and ink already share. */
+  function commitImages(nextItems: WorkspaceImage[], nextBaseWidth: number) {
+    latestImagesRef.current = { items: nextItems, baseWidth: nextBaseWidth };
+    setImages(nextItems);
+    setImagesBaseWidth(nextBaseWidth);
+    triggerSave();
   }
 
   function handleTextChange(html: string) {
@@ -278,6 +338,15 @@ export function NoteEditorPage() {
           };
           setInitialInkStrokes(document.data.ink.strokes);
           setInitialInkBaseWidth(document.data.ink.baseWidth || null);
+
+          // images is optional — absent on documents saved before
+          // Workspace Phase 2. Defaulting to empty keeps those notes
+          // loading exactly as before, unchanged.
+          const loadedImages = document.data.images?.items ?? [];
+          const loadedImagesBaseWidth = document.data.images?.baseWidth || null;
+          latestImagesRef.current = { items: loadedImages, baseWidth: loadedImagesBaseWidth };
+          setImages(loadedImages);
+          setImagesBaseWidth(loadedImagesBaseWidth);
         } else {
           // No unified document saved yet — synthesize one from legacy
           // Phase 1-4 data so nothing is lost or hidden.
@@ -377,6 +446,101 @@ export function NoteEditorPage() {
   async function handleDeleteAttachment(attachment: NoteAttachment) {
     await deleteAttachment(attachment);
     setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
+    // An image object in the workspace can't outlive the file it points
+    // at — drop any layout entries referencing this attachment too.
+    const remaining = latestImagesRef.current.items.filter((img) => img.attachmentId !== attachment.id);
+    if (remaining.length !== latestImagesRef.current.items.length) {
+      commitImages(remaining, latestImagesRef.current.baseWidth ?? containerWidth);
+    }
+    if (selectedImageId && !remaining.some((img) => img.id === selectedImageId)) {
+      setSelectedImageId(null);
+    }
+  }
+
+  function placeNewImage(attachment: NoteAttachment, naturalWidth: number, naturalHeight: number) {
+    const baseWidth = latestImagesRef.current.baseWidth ?? containerWidth;
+    if (!baseWidth) return; // workspace hasn't laid out yet — shouldn't normally happen
+
+    const aspect = naturalHeight / naturalWidth || 1;
+    const width = Math.min(DEFAULT_IMAGE_WIDTH_AT_BASE, baseWidth - IMAGE_INSET * 2);
+    const height = width * aspect;
+
+    // Stack new images down and to the right a little so repeated inserts
+    // don't all land in an identical spot.
+    const offset = (latestImagesRef.current.items.length % 5) * 18;
+
+    const newImage: WorkspaceImage = {
+      id: crypto.randomUUID(),
+      attachmentId: attachment.id,
+      x: IMAGE_INSET + offset,
+      y: IMAGE_INSET + offset,
+      width,
+      height,
+      zIndex: latestImagesRef.current.items.length + 1,
+    };
+
+    commitImages([...latestImagesRef.current.items, newImage], baseWidth);
+    setSelectedImageId(newImage.id);
+  }
+
+  async function handleAddImage(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !user) return;
+
+    if (!(IMAGE_TYPES as readonly string[]).includes(file.type)) {
+      setImageError("Only JPG, PNG, and WebP images are supported here.");
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      setImageError(`"${file.name}" is larger than 15 MB.`);
+      return;
+    }
+
+    setImageError(null);
+    setIsUploadingImage(true);
+    try {
+      const targetNote = await ensureNoteExists();
+      const uploaded = await uploadAttachment(user.id, targetNote.id, file);
+      setAttachments((prev) => [...prev, uploaded]);
+
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        img.onerror = () => reject(new Error("Couldn't read this image."));
+        img.src = uploaded.url;
+      });
+
+      placeNewImage(uploaded, dimensions.width, dimensions.height);
+    } catch (err) {
+      setImageError(err instanceof Error ? err.message : "Couldn't add this image.");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }
+
+  /** Inserts an already-uploaded attachment into the workspace without
+   * touching Storage at all — reuses the same attachmentId. */
+  function handleInsertExistingImage(attachment: NoteAttachment) {
+    const img = new Image();
+    img.onload = () => placeNewImage(attachment, img.naturalWidth, img.naturalHeight);
+    img.onerror = () => setImageError("Couldn't read this image.");
+    img.src = attachment.url;
+  }
+
+  function handleImageChange(id: string, patch: Partial<WorkspaceImage>) {
+    const baseWidth = latestImagesRef.current.baseWidth ?? containerWidth;
+    const next = latestImagesRef.current.items.map((img) => (img.id === id ? { ...img, ...patch } : img));
+    commitImages(next, baseWidth);
+  }
+
+  function handleDeleteImageFromWorkspace(id: string) {
+    const baseWidth = latestImagesRef.current.baseWidth ?? containerWidth;
+    commitImages(
+      latestImagesRef.current.items.filter((img) => img.id !== id),
+      baseWidth
+    );
+    if (selectedImageId === id) setSelectedImageId(null);
   }
 
   function handleOpenPdf(attachment: NoteAttachment) {
@@ -507,6 +671,16 @@ export function NoteEditorPage() {
           />
         )}
 
+        {!isDrawMode && (
+          <IconButton
+            icon={<ImageIcon />}
+            aria-label="Insert image"
+            onClick={() => imageInputRef.current?.click()}
+            disabled={isUploadingImage}
+            style={{ flexShrink: 0 }}
+          />
+        )}
+
         <div style={{ marginLeft: "auto", display: "flex", gap: "var(--space-2xs)", flexShrink: 0 }}>
           <IconButton
             icon={<UndoIcon />}
@@ -547,23 +721,75 @@ export function NoteEditorPage() {
           }}
         />
 
-        {/* Unified workspace: text layer in normal flow (determines height)
-            with the ink layer absolutely filling the same growing area. */}
-        <div style={{ position: "relative", minHeight: "60vh" }}>
-          <RichTextEditor content={initialTextHtml} onChange={handleTextChange} placeholder="Start writing…" />
-          <div style={{ position: "absolute", inset: 0, pointerEvents: isDrawMode ? "auto" : "none" }}>
-            <InkCanvasLayer
-              ref={inkRef}
-              tool={isDrawMode ? (mode as DrawingTool) : "pen"}
-              thicknessStep={thicknessStep}
-              active={isDrawMode}
-              allowTouchDrawing={allowTouchDrawing}
-              initialStrokes={initialInkStrokes}
-              initialBaseWidth={initialInkBaseWidth}
-              onChange={handleInkChange}
-            />
-          </div>
-        </div>
+        {/* Unified workspace: text layer in normal flow (determines base
+            height), images layer in the middle, ink layer on top — same
+            mode-based pointer-events pattern as text/ink already used.
+            minHeight additionally grows to fit any image placed low on
+            the page, so it can never be clipped. */}
+        {(() => {
+          const attachmentUrlById = new Map(attachments.map((a) => [a.id, a.url]));
+          const imageScale = imagesBaseWidth && imagesBaseWidth > 0 ? containerWidth / imagesBaseWidth : 1;
+          const imagesMaxBottom =
+            images.length > 0 ? Math.max(...images.map((img) => (img.y + img.height) * imageScale)) : 0;
+          const workspaceMinHeight = Math.max(
+            typeof window !== "undefined" ? window.innerHeight * 0.6 : 500,
+            imagesMaxBottom + 40
+          );
+
+          return (
+            <div ref={workspaceRef} style={{ position: "relative", minHeight: workspaceMinHeight }}>
+              <RichTextEditor content={initialTextHtml} onChange={handleTextChange} placeholder="Start writing…" />
+
+              <div
+                onClick={() => {
+                  if (!isDrawMode) setSelectedImageId(null);
+                }}
+                style={{ position: "absolute", inset: 0, pointerEvents: isDrawMode ? "none" : "auto" }}
+              >
+                {images.map((image) => {
+                  const url = attachmentUrlById.get(image.attachmentId);
+                  if (!url) return null; // attachment was deleted elsewhere — nothing to show
+                  return (
+                    <WorkspaceImageObject
+                      key={image.id}
+                      image={image}
+                      url={url}
+                      scale={imageScale || 1}
+                      interactive={!isDrawMode}
+                      selected={selectedImageId === image.id}
+                      onSelect={() => setSelectedImageId(image.id)}
+                      onChange={(patch) => handleImageChange(image.id, patch)}
+                      onDelete={() => handleDeleteImageFromWorkspace(image.id)}
+                      maxWidthAtBase={imagesBaseWidth ?? containerWidth}
+                    />
+                  );
+                })}
+              </div>
+
+              <div style={{ position: "absolute", inset: 0, pointerEvents: isDrawMode ? "auto" : "none" }}>
+                <InkCanvasLayer
+                  ref={inkRef}
+                  tool={isDrawMode ? (mode as DrawingTool) : "pen"}
+                  thicknessStep={thicknessStep}
+                  active={isDrawMode}
+                  allowTouchDrawing={allowTouchDrawing}
+                  initialStrokes={initialInkStrokes}
+                  initialBaseWidth={initialInkBaseWidth}
+                  onChange={handleInkChange}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept={IMAGE_TYPES.join(",")}
+          onChange={handleAddImage}
+          style={{ display: "none" }}
+        />
+        {imageError && <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{imageError}</p>}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)" }}>
           <div>
@@ -599,7 +825,12 @@ export function NoteEditorPage() {
             <p style={{ color: "var(--color-danger)", fontSize: "var(--text-sm)" }}>{attachmentError}</p>
           )}
 
-          <AttachmentList attachments={attachments} onDelete={handleDeleteAttachment} onOpenPdf={handleOpenPdf} />
+          <AttachmentList
+            attachments={attachments}
+            onDelete={handleDeleteAttachment}
+            onOpenPdf={handleOpenPdf}
+            onInsertImage={handleInsertExistingImage}
+          />
         </div>
 
         {(error || errorMessage) && (

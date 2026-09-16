@@ -92,10 +92,39 @@ export interface NoteDocumentInk {
   strokes: WorkspaceStroke[];
 }
 
+// ---------------------------------------------------------------------
+// Inline images (Workspace Phase 2). Same "px at a fixed reference
+// width" coordinate model as ink, for the same reason — the document's
+// height changes as text is added, so normalizing y against total height
+// would make images drift. Images get their OWN baseWidth (not ink's) so
+// the proven ink system never has to be touched for this feature; the
+// two will match numerically in practice since both measure the same
+// workspace container.
+// ---------------------------------------------------------------------
+
+export interface WorkspaceImage {
+  id: string;
+  /** Points at the existing note_attachments row — the actual file
+   * lives only in Storage, never duplicated here. */
+  attachmentId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex: number;
+}
+
+export interface NoteDocumentImages {
+  baseWidth: number;
+  items: WorkspaceImage[];
+}
+
 export interface NoteDocumentData {
   version: 1;
   text: { html: string };
   ink: NoteDocumentInk;
+  /** Optional — absent on documents saved before Workspace Phase 2. */
+  images?: NoteDocumentImages;
 }
 
 export interface NoteDocument {

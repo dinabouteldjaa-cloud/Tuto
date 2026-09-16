@@ -52,15 +52,27 @@ function CloseIcon() {
   );
 }
 
+function InsertIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 interface AttachmentListProps {
   attachments: NoteAttachment[];
   onDelete: (attachment: NoteAttachment) => Promise<void>;
   /** When provided, tapping a PDF calls this instead of opening the raw
    * signed URL in a new tab — used to route into the in-app PDF viewer. */
   onOpenPdf?: (attachment: NoteAttachment) => void;
+  /** When provided, image thumbnails get a small "insert into note"
+   * action that places the existing attachment into the workspace
+   * without re-uploading or duplicating the Storage object. */
+  onInsertImage?: (attachment: NoteAttachment) => void;
 }
 
-export function AttachmentList({ attachments, onDelete, onOpenPdf }: AttachmentListProps) {
+export function AttachmentList({ attachments, onDelete, onOpenPdf, onInsertImage }: AttachmentListProps) {
   const [viewingImage, setViewingImage] = useState<NoteAttachment | null>(null);
   const [attachmentToDelete, setAttachmentToDelete] = useState<NoteAttachment | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -137,6 +149,26 @@ export function AttachmentList({ attachments, onDelete, onOpenPdf }: AttachmentL
                   boxShadow: "var(--shadow-sm)",
                 }}
               />
+              {onInsertImage && (
+                <IconButton
+                  icon={<InsertIcon />}
+                  aria-label={`Insert ${attachment.fileName} into note`}
+                  onClick={() => onInsertImage(attachment)}
+                  style={{
+                    position: "absolute",
+                    bottom: -6,
+                    right: -6,
+                    width: 28,
+                    height: 28,
+                    minWidth: 28,
+                    minHeight: 28,
+                    background: "var(--color-primary)",
+                    color: "var(--color-on-primary)",
+                    border: "1px solid var(--color-card)",
+                    boxShadow: "var(--shadow-sm)",
+                  }}
+                />
+              )}
             </div>
           ))}
         </div>
