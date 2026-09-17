@@ -75,7 +75,7 @@
   --text-2xl: 30px;
 
   /* ---- Layout ---- */
-  --app-max-width: 480px;
+  --app-max-width: clamp(480px, 92vw, 900px);
   --bottom-nav-height: 72px;
   --top-bar-height: 56px;
 }

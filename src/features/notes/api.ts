@@ -244,12 +244,31 @@ export async function deleteNote(noteId: string): Promise<void> {
 // Attachments (images + PDFs)
 // ---------------------------------------------------------------------
 
-async function withSignedUrl(row: NoteAttachmentRow): Promise<NoteAttachment> {
-  const { data, error } = await supabase.storage
-    .from(ATTACHMENTS_BUCKET)
-    .createSignedUrl(row.file_path, SIGNED_URL_EXPIRES_IN_SECONDS);
+// Session-lifetime cache of signed URLs, keyed by Storage path. Reused
+// until close to actual expiry, so reopening the same note repeatedly in
+// one session doesn't re-request a signed URL for files that already
+// have a perfectly valid one. Cleared naturally on full page reload.
+const SIGNED_URL_SAFETY_MARGIN_SECONDS = 5 * 60;
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 
-  if (error) throw error;
+async function withSignedUrl(row: NoteAttachmentRow): Promise<NoteAttachment> {
+  const cached = signedUrlCache.get(row.file_path);
+  const now = Date.now();
+
+  let url: string;
+  if (cached && cached.expiresAt > now) {
+    url = cached.url;
+  } else {
+    const { data, error } = await supabase.storage
+      .from(ATTACHMENTS_BUCKET)
+      .createSignedUrl(row.file_path, SIGNED_URL_EXPIRES_IN_SECONDS);
+    if (error) throw error;
+    url = data.signedUrl;
+    signedUrlCache.set(row.file_path, {
+      url,
+      expiresAt: now + (SIGNED_URL_EXPIRES_IN_SECONDS - SIGNED_URL_SAFETY_MARGIN_SECONDS) * 1000,
+    });
+  }
 
   return {
     id: row.id,
@@ -259,7 +278,7 @@ async function withSignedUrl(row: NoteAttachmentRow): Promise<NoteAttachment> {
     fileType: row.file_type,
     fileSize: row.file_size,
     createdAt: row.created_at,
-    url: data.signedUrl,
+    url,
   };
 }
 
@@ -334,6 +353,7 @@ export async function deleteAttachment(attachment: NoteAttachment): Promise<void
 
   const { error } = await supabase.from("note_attachments").delete().eq("id", attachment.id);
   if (error) throw error;
+  signedUrlCache.delete(attachment.filePath);
 }
 
 // ---------------------------------------------------------------------

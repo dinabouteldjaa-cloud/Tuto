@@ -59,6 +59,10 @@ function CloseIcon() {
 const MIN_SIZE = 60; // px at baseWidth
 const CROP_PANEL_MAX = 340; // px, fixed preview size for the crop editor
 
+// Once a URL has actually finished loading once this session, don't
+// flash the skeleton again for it on every re-render (drag/resize, etc).
+const loadedUrlCache = new Set<string>();
+
 interface WorkspaceImageObjectProps {
   image: WorkspaceImage;
   url: string;
@@ -114,6 +118,7 @@ export function WorkspaceImageObject({
   } | null>(null);
 
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+  const [isLoaded, setIsLoaded] = useState(() => loadedUrlCache.has(url));
   const [isCropping, setIsCropping] = useState(false);
   const [draftCrop, setDraftCrop] = useState<WorkspaceImageCrop | null>(null);
   const cropGestureRef = useRef<{
@@ -443,6 +448,7 @@ export function WorkspaceImageObject({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      onClick={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
         left: image.x * scale,
@@ -468,8 +474,32 @@ export function WorkspaceImageObject({
           transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
           overflow: "hidden",
           borderRadius: "var(--radius-sm)",
+          background: isLoaded ? "transparent" : "var(--color-primary-surface)",
         }}
       >
+        {!isLoaded && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                border: "3px solid var(--color-primary)",
+                borderTopColor: "transparent",
+                animation: "tuto-image-spin 0.8s linear infinite",
+              }}
+            />
+            <style>{`@keyframes tuto-image-spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
         <img
           src={url}
           alt=""
@@ -477,8 +507,10 @@ export function WorkspaceImageObject({
           onLoad={(e) => {
             const img = e.currentTarget;
             if (!naturalSize) setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
+            loadedUrlCache.add(url);
+            setIsLoaded(true);
           }}
-          style={{ ...imgStyle, pointerEvents: "none", userSelect: "none" }}
+          style={{ ...imgStyle, pointerEvents: "none", userSelect: "none", opacity: isLoaded ? 1 : 0 }}
         />
       </div>
 
@@ -500,6 +532,7 @@ export function WorkspaceImageObject({
               padding: 4,
             }}
             onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <IconButton icon={<RotateIcon />} aria-label="Rotate 90°" onClick={handleRotate} style={{ width: 34, height: 34, minWidth: 34, minHeight: 34 }} />
             <IconButton icon={<CropIcon />} aria-label="Crop image" onClick={startCropping} style={{ width: 34, height: 34, minWidth: 34, minHeight: 34 }} />

@@ -37,15 +37,27 @@ interface InkCanvasLayerProps {
    * through to the text layer beneath. */
   active: boolean;
   /**
-   * When false (the default), plain finger touches are ignored for
-   * drawing purposes — the canvas never captures them or blocks
-   * scrolling, so a long note stays scrollable by touch even while
-   * Pen/Highlighter/Eraser is selected. Stylus (`pointerType: "pen"`)
-   * and mouse always draw regardless of this flag, since neither
-   * conflicts with touch-scrolling. When true, plain touch also draws
-   * (and, only then, blocks scroll during an active stroke) — an
-   * explicit opt-in for phone-only users with no stylus, who need
-   * finger-drawing as their only option.
+   * Default true: when a draw tool is selected, plain touch draws
+   * immediately, same as a stylus — matching a Notability-style
+   * interaction rather than requiring the user to discover a second
+   * toggle before touch does anything. Real-device testing showed a
+   * hidden, off-by-default toggle here made drawing on a touch-only
+   * phone appear completely broken.
+   *
+   * When explicitly turned off, plain touch is ignored while a draw
+   * tool is active (closer to "palm rejection" for stylus users who
+   * want to rest a hand on the screen) — but note that touch-action is
+   * "none" for the WHOLE canvas whenever a draw tool is active
+   * regardless of this flag (see below), so turning this off does not
+   * restore finger-scrolling while a draw tool is selected; switch to
+   * Text mode to scroll. That trade-off is deliberate: reactively
+   * toggling touch-action per-pointerType during pointerdown (the
+   * previous approach) did not reliably stop Apple Pencil from
+   * triggering a native scroll on real iPadOS hardware, since
+   * touch-action must be correct BEFORE a contact begins, not changed
+   * once it has. A static "none" while any draw tool is active is the
+   * only way to make "the page must not pan/scroll during a stroke" an
+   * actual guarantee rather than a best-effort reaction.
    */
   allowTouchDrawing?: boolean;
   /** Initial strokes + the width they were authored at — used only at
@@ -90,7 +102,7 @@ function strokeNearPoint(stroke: WorkspaceStroke, point: WorkspaceStrokePoint, r
  */
 export const InkCanvasLayer = forwardRef<InkCanvasLayerHandle, InkCanvasLayerProps>(
   function InkCanvasLayer(
-    { tool, thicknessStep, active, allowTouchDrawing = false, initialStrokes, initialBaseWidth, onChange },
+    { tool, thicknessStep, active, allowTouchDrawing = true, initialStrokes, initialBaseWidth, onChange },
     ref
   ) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -220,19 +232,8 @@ export const InkCanvasLayer = forwardRef<InkCanvasLayerHandle, InkCanvasLayerPro
 
     function handlePointerDown(e: ReactPointerEvent<HTMLCanvasElement>) {
       if (!active || drawingPointerIdRef.current !== null) return;
-      if (e.pointerType === "touch" && !allowTouchDrawing) return; // let native scroll proceed
+      if (e.pointerType === "touch" && !allowTouchDrawing) return; // ignored, e.g. palm rejection
 
-      // touch-action is static CSS the browser reads before a contact
-      // begins — it can't be conditioned on pointerType in advance. So
-      // for pen (and mouse), lock it to "none" for JUST this stroke,
-      // synchronously, before the browser can commit to treating the
-      // movement as a native pan/scroll. Restored in handlePointerUp.
-      // This is what actually stops Apple Pencil from scrolling the
-      // page — the steady-state touchAction below only covers the
-      // finger-touch case.
-      if (e.pointerType !== "touch" && canvasRef.current) {
-        canvasRef.current.style.touchAction = "none";
-      }
       e.preventDefault();
 
       try {
@@ -265,7 +266,7 @@ export const InkCanvasLayer = forwardRef<InkCanvasLayerHandle, InkCanvasLayerPro
 
     function handlePointerMove(e: ReactPointerEvent<HTMLCanvasElement>) {
       if (drawingPointerIdRef.current !== e.pointerId) return;
-      if (e.pointerType !== "touch") e.preventDefault();
+      e.preventDefault();
       const point = pointFromEvent(e);
 
       if (tool === "eraser") {
@@ -287,11 +288,6 @@ export const InkCanvasLayer = forwardRef<InkCanvasLayerHandle, InkCanvasLayerPro
         canvasRef.current?.releasePointerCapture(e.pointerId);
       } catch {
         // Fine if it was never actually captured.
-      }
-      // Restore the steady-state touch-action now that this stroke is
-      // done, so a later finger touch can scroll normally again.
-      if (canvasRef.current) {
-        canvasRef.current.style.touchAction = active && allowTouchDrawing ? "none" : "auto";
       }
 
       const finished = currentStrokeRef.current;
@@ -316,7 +312,7 @@ export const InkCanvasLayer = forwardRef<InkCanvasLayerHandle, InkCanvasLayerPro
             height: "100%",
             display: "block",
             pointerEvents: active ? "auto" : "none",
-            touchAction: active && allowTouchDrawing ? "none" : "auto",
+            touchAction: active ? "none" : "auto",
             cursor: !active ? "default" : tool === "eraser" ? "cell" : "crosshair",
           }}
         />

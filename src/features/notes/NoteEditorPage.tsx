@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { TopBar } from "@/components/TopBar";
-import { BottomNavigation } from "@/components/BottomNavigation";
+import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/Button";
 import { IconButton } from "@/components/IconButton";
 import { LoadingState } from "@/components/LoadingState";
@@ -213,7 +213,7 @@ export function NoteEditorPage() {
   // Workspace: text + ink together.
   const [mode, setMode] = useState<WorkspaceMode>("text");
   const [thicknessStep, setThicknessStep] = useState<0 | 1 | 2>(1);
-  const [allowTouchDrawing, setAllowTouchDrawing] = useState(false);
+  const [allowTouchDrawing, setAllowTouchDrawing] = useState(true);
   const [initialTextHtml, setInitialTextHtml] = useState("");
   const [initialInkStrokes, setInitialInkStrokes] = useState<WorkspaceStroke[]>([]);
   const [initialInkBaseWidth, setInitialInkBaseWidth] = useState<number | null>(null);
@@ -329,13 +329,31 @@ export function NoteEditorPage() {
     let cancelled = false;
     (async () => {
       try {
-        const data = await getNote(noteId);
+        // getNote/getNoteDocument/listAttachments are independent of each
+        // other's results — fetch all three in parallel instead of
+        // waiting on getNote first just to re-derive the same noteId we
+        // already have from the route.
+        const [noteResult, documentResult, attachmentsResult] = await Promise.allSettled([
+          getNote(noteId),
+          getNoteDocument(noteId),
+          listAttachments(noteId),
+        ]);
         if (cancelled) return;
+
+        if (noteResult.status === "rejected") throw noteResult.reason;
+        if (documentResult.status === "rejected") throw documentResult.reason;
+        const data = noteResult.value;
+        const document = documentResult.value;
+
         setNote(data);
         setTitle(data.title);
-
-        const document = await getNoteDocument(noteId);
-        if (cancelled) return;
+        if (attachmentsResult.status === "fulfilled") {
+          setAttachments(attachmentsResult.value);
+        } else {
+          // Attachments are supplementary — a transient failure here
+          // shouldn't block the note's text/ink from loading at all.
+          setAttachmentError("Couldn't load attachments — try reopening the note.");
+        }
 
         if (document) {
           latestTextHtmlRef.current = document.data.text.html;
@@ -374,9 +392,6 @@ export function NoteEditorPage() {
             // No legacy handwriting to migrate — fine, proceed with text only.
           }
         }
-
-        const attachmentsData = await listAttachments(data.id);
-        if (!cancelled) setAttachments(attachmentsData);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Couldn't load this note.");
       } finally {
@@ -590,64 +605,38 @@ export function NoteEditorPage() {
 
   if (isLoading) {
     return (
-      <div style={{ minHeight: "100dvh", background: "var(--color-bg)", display: "flex", justifyContent: "center" }}>
-        <div
-          style={{
-            width: "100%",
-            // Same 480px as the rest of the app at phone widths, but
-            // substantially wider on tablet/desktop — the note editor is
-            // the one screen that benefits from more room. Never
-            // edge-to-edge; still centered with margins at large sizes.
-            maxWidth: "clamp(480px, 92vw, 900px)",
-            minHeight: "100dvh",
-            display: "flex",
-            flexDirection: "column",
-            background: "var(--color-bg)",
-          }}
-        >
-          <TopBar title="Note" onBack={() => navigate(`/notes/${subjectId}`)} />
-          <LoadingState label="Loading note…" />
-          <BottomNavigation />
-        </div>
-      </div>
+      <AppShell topBar={<TopBar title="Note" onBack={() => navigate(`/notes/${subjectId}`)} />}>
+        <LoadingState label="Loading note…" />
+      </AppShell>
     );
   }
 
   const isDrawMode = mode !== "text";
 
-  return (
-    <div style={{ minHeight: "100dvh", background: "var(--color-bg)", display: "flex", justifyContent: "center" }}>
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "clamp(480px, 92vw, 900px)",
-          minHeight: "100dvh",
-          display: "flex",
-          flexDirection: "column",
-          background: "var(--color-bg)",
-          position: "relative",
-        }}
-      >
-      <TopBar
-        title={isNew ? "New note" : "Edit note"}
-        onBack={() => {
-          flushNow();
-          navigate(`/notes/${subjectId}`);
-        }}
-        action={
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
-            <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>
-              {status === "saving" && "Saving…"}
-              {status === "saved" && "Saved"}
-              {status === "error" && <span style={{ color: "var(--color-danger)" }}>Save failed</span>}
-            </span>
-            {!isNew && (
-              <IconButton icon={<TrashIcon />} aria-label="Delete note" onClick={() => setConfirmDelete(true)} />
-            )}
-          </div>
-        }
-      />
+  const topBar = (
+    <TopBar
+      title={isNew ? "New note" : "Edit note"}
+      onBack={() => {
+        flushNow();
+        navigate(`/notes/${subjectId}`);
+      }}
+      action={
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-sm)" }}>
+          <span style={{ fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>
+            {status === "saving" && "Saving…"}
+            {status === "saved" && "Saved"}
+            {status === "error" && <span style={{ color: "var(--color-danger)" }}>Save failed</span>}
+          </span>
+          {!isNew && (
+            <IconButton icon={<TrashIcon />} aria-label="Delete note" onClick={() => setConfirmDelete(true)} />
+          )}
+        </div>
+      }
+    />
+  );
 
+  return (
+    <AppShell topBar={topBar}>
       {/* Compact mode toolbar: Text | Pen | Highlighter | Eraser | Undo | Redo */}
       <div
         style={{
@@ -717,8 +706,12 @@ export function NoteEditorPage() {
         {isDrawMode && (
           <IconButton
             icon={<FingerIcon />}
-            aria-label={allowTouchDrawing ? "Finger draws (on) — tap to let finger scroll instead" : "Finger draws (off) — tap to draw with finger too"}
-            active={allowTouchDrawing}
+            aria-label={
+              allowTouchDrawing
+                ? "Finger draws (default) — tap to ignore finger touch while drawing with stylus"
+                : "Finger touch ignored — tap to let finger draw again"
+            }
+            active={!allowTouchDrawing}
             onClick={() => setAllowTouchDrawing((v) => !v)}
             style={{ flexShrink: 0 }}
           />
@@ -903,8 +896,6 @@ export function NoteEditorPage() {
         onConfirm={handleDeleteConfirmed}
         onCancel={() => setConfirmDelete(false)}
       />
-        <BottomNavigation />
-      </div>
-    </div>
+    </AppShell>
   );
 }
