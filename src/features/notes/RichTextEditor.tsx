@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useEditor, EditorContent, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
@@ -102,6 +103,21 @@ interface RichTextEditorProps {
   content: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  /**
+   * When false, the underlying contenteditable is genuinely disabled
+   * (via Tiptap's own setEditable, which toggles the real
+   * contenteditable DOM attribute) and explicitly blurred. This exists
+   * because pointer-events alone controls hit-testing for NEW pointer
+   * interactions, but does nothing about an ALREADY-focused
+   * contenteditable — and iPadOS Scribble targets the document's
+   * focused editable region, not just whatever is on top for
+   * hit-testing. If the user was typing in Text mode and then switches
+   * to Pen without this, Tiptap can remain document.activeElement, and
+   * Apple Pencil input can get interpreted as Scribble text entry
+   * instead of ink, regardless of what mode the UI visually shows.
+   * Defaults to true so existing callers are unaffected.
+   */
+  editable?: boolean;
 }
 
 /**
@@ -112,7 +128,7 @@ interface RichTextEditorProps {
  * only mount this once the real initial content is known (e.g. after an
  * async note load finishes), rather than trying to update it reactively.
  */
-export function RichTextEditor({ content, onChange, placeholder }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, placeholder, editable = true }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -128,6 +144,7 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
       Placeholder.configure({ placeholder: placeholder ?? "" }),
     ],
     content,
+    editable,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: {
@@ -135,6 +152,19 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
       },
     },
   });
+
+  // useEditor's `editable` option only applies at creation. Toggle the
+  // real contenteditable DOM attribute reactively as the prop changes,
+  // and explicitly blur when turning it off — this is what actually
+  // makes the mode switch authoritative rather than cosmetic. See the
+  // prop's doc comment for why pointer-events alone isn't enough.
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(editable);
+    if (!editable && editor.isFocused) {
+      editor.commands.blur();
+    }
+  }, [editable, editor]);
 
   const activeState = useEditorState({
     editor,

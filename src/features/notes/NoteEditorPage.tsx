@@ -266,6 +266,14 @@ export function NoteEditorPage() {
   // `noteId` route param — see useNoteDocumentAutosave's getNoteId doc
   // comment for why that distinction matters for a brand-new note.
   const noteIdRef = useRef<string | null>(noteId ?? null);
+  // Set the instant ensureNoteExists creates a note in THIS session (not
+  // on a genuine reopen). The load effect below checks this and skips
+  // itself for that exact transition — see its comment for why: without
+  // this, the load effect's own getNoteDocument fetch (triggered by the
+  // very same navigate() that creating a note performs) can race ahead
+  // of the user's own next action (e.g. uploading an image) and
+  // overwrite local state with a stale, pre-image document.
+  const justCreatedNoteIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (noteId) noteIdRef.current = noteId;
@@ -326,6 +334,21 @@ export function NoteEditorPage() {
 
   useEffect(() => {
     if (isNew || !noteId) return;
+
+    if (justCreatedNoteIdRef.current === noteId) {
+      // This load effect run exists only because ensureNoteExists's own
+      // navigate() just changed the URL from /new to /:noteId — not
+      // because the user actually reopened an existing note. Local
+      // state (title, and whatever the user does next, like uploading
+      // an image) is already authoritative; fetching and overwriting
+      // with the database's current state here would race the user's
+      // own in-flight actions. Clear the flag so a GENUINE later reopen
+      // of this same note (navigate away and back) still loads normally.
+      justCreatedNoteIdRef.current = null;
+      setIsLoading(false);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
@@ -420,6 +443,7 @@ export function NoteEditorPage() {
       // directly via getNoteId(), independent of whether setNote/navigate
       // below have actually triggered a re-render yet.
       noteIdRef.current = created.id;
+      justCreatedNoteIdRef.current = created.id;
       setNote(created);
       navigate(`/notes/${subjectId}/${created.id}`, { replace: true });
       return created;
@@ -790,7 +814,12 @@ export function NoteEditorPage() {
               }}
               style={{ position: "relative", minHeight: workspaceMinHeight }}
             >
-              <RichTextEditor content={initialTextHtml} onChange={handleTextChange} placeholder="Start writing…" />
+              <RichTextEditor
+                content={initialTextHtml}
+                onChange={handleTextChange}
+                placeholder="Start writing…"
+                editable={!isDrawMode}
+              />
 
               <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
                 {images.map((image) => {
