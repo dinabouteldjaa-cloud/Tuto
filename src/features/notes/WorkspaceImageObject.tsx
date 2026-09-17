@@ -510,7 +510,16 @@ export function WorkspaceImageObject({
             loadedUrlCache.add(url);
             setIsLoaded(true);
           }}
-          style={{ ...imgStyle, pointerEvents: "none", userSelect: "none", opacity: isLoaded ? 1 : 0 }}
+          style={
+            {
+              ...imgStyle,
+              pointerEvents: "none",
+              userSelect: "none",
+              opacity: isLoaded ? 1 : 0,
+              WebkitTouchCallout: "none",
+              WebkitUserDrag: "none",
+            } as React.CSSProperties
+          }
         />
       </div>
 
